@@ -43,9 +43,6 @@ find_package(camera_info_manager REQUIRED)
 if(NOT NO_CUDA)
   find_package(CUDA QUIET)
 endif()
-find_package(dua_app_management REQUIRED)
-find_package(dua_node REQUIRED)
-find_package(dua_qos REQUIRED)
 find_package(image_transport REQUIRED)
 find_package(OpenCV 4 REQUIRED)
 find_package(params_manager REQUIRED)
@@ -54,11 +51,8 @@ find_package(rclcpp_components REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
-find_package(theora_wrappers REQUIRED)
-find_package(Threads REQUIRED)
-if(VPI)
-  find_package(vpi QUIET)
-endif()
+
+
 
 # Generate parameters source code
 generate_init_parameters(
@@ -93,8 +87,6 @@ target_link_libraries(usb_camera_driver
 ament_target_dependencies(usb_camera_driver
   camera_calibration_parsers
   camera_info_manager
-  dua_node
-  dua_qos
   image_transport
   OpenCV
   params_manager
@@ -102,8 +94,7 @@ ament_target_dependencies(usb_camera_driver
   rclcpp_components
   sensor_msgs
   std_msgs
-  std_srvs
-  theora_wrappers)
+  std_srvs)
 rclcpp_components_register_nodes(usb_camera_driver "USBCameraDriver::CameraDriverNode")
 
 # USB Camera Driver standalone application

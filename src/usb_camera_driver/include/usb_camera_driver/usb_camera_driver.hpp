@@ -31,6 +31,9 @@
 #ifndef ROS2_USB_CAMERA_USB_CAMERA_DRIVER_HPP
 #define ROS2_USB_CAMERA_USB_CAMERA_DRIVER_HPP
 
+#ifndef DUAQOS_HPP
+#define DUAQOS_HPP
+
 #include <atomic>
 #include <chrono>
 #include <memory>
@@ -42,27 +45,7 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/videoio.hpp>
 
-#if defined(WITH_VPI)
-#include <vpi/Context.h>
-#include <vpi/Image.h>
-#include <vpi/LensDistortionModels.h>
-#include <vpi/OpenCVInterop.hpp>
-#include <vpi/Status.h>
-#include <vpi/Stream.h>
-#include <vpi/WarpMap.h>
-#include <vpi/algo/ConvertImageFormat.h>
-#include <vpi/algo/Remap.h>
-#include <vpi/algo/Rescale.h>
-#elif defined(WITH_CUDA)
-#include <opencv2/core/cuda.hpp>
-#include <opencv2/cudaarithm.hpp>
-#include <opencv2/cudawarping.hpp>
-#endif
-
 #include <rclcpp/rclcpp.hpp>
-
-#include <dua_node/dua_node.hpp>
-#include <dua_qos/dua_qos.hpp>
 
 #include <sensor_msgs/msg/camera_info.hpp>
 #include <sensor_msgs/msg/image.hpp>
@@ -73,61 +56,92 @@
 #include <camera_info_manager/camera_info_manager.hpp>
 
 #include <image_transport/image_transport.hpp>
+#include <rmw/types.h>
 
-#include <theora_wrappers/publisher.hpp>
 
+using namespace rcl_interfaces::msg;
 using namespace sensor_msgs::msg;
 using namespace std_srvs::srv;
+
+
+
+
 
 namespace USBCameraDriver
 {
 
+
+// duaqos.hpp (Modifica per aggiungere Visualization)
+
+class DUAQoS {
+public:
+    // Metodo statico in DUAQoS per ottenere il QoS
+    static rmw_qos_profile_t get_image_qos(int depth) {
+        rmw_qos_profile_t qos_profile = {
+            RMW_QOS_POLICY_HISTORY_KEEP_LAST,
+            depth,
+            RMW_QOS_POLICY_RELIABILITY_RELIABLE,
+            RMW_QOS_POLICY_DURABILITY_VOLATILE,
+            RMW_QOS_DEADLINE_DEFAULT,
+            RMW_QOS_LIFESPAN_DEFAULT,
+            RMW_QOS_POLICY_LIVELINESS_SYSTEM_DEFAULT,
+            RMW_QOS_LIVELINESS_LEASE_DURATION_DEFAULT,
+            false
+        };
+        return qos_profile;
+    }
+
+    // Classe annidata Visualization
+    class Visualization {
+    public:
+        // Metodo statico in Visualization per ottenere il QoS
+        static rmw_qos_profile_t get_image_qos(int depth) {
+            rmw_qos_profile_t qos_profile = {
+                RMW_QOS_POLICY_HISTORY_KEEP_LAST,
+                depth,
+                RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT,
+                RMW_QOS_POLICY_DURABILITY_VOLATILE,
+                RMW_QOS_DEADLINE_DEFAULT,
+                RMW_QOS_LIFESPAN_DEFAULT,
+                RMW_QOS_POLICY_LIVELINESS_SYSTEM_DEFAULT,
+                RMW_QOS_LIVELINESS_LEASE_DURATION_DEFAULT,
+                false
+            };
+            return qos_profile;
+        }
+    };
+};
+
+
+#endif // DUAQOS_HPP
+
+
+#endif // DUAQOS_HPP
+
+
 /**
  * Drives USB, V4L-compatible cameras with OpenCV.
  */
-class CameraDriverNode : public DUANode::NodeBase
+class CameraDriverNode : public rclcpp::Node
 {
 public:
   explicit CameraDriverNode(const rclcpp::NodeOptions & opts = rclcpp::NodeOptions());
   virtual ~CameraDriverNode();
 
 private:
-  /* Node initialization routines. */
-  void init_parameters();
-#if defined(WITH_VPI)
-  void init_vpi();
-#endif
+  
+
 
   /* Video capture device and buffers. */
   cv::VideoCapture video_cap_;
-  cv::Mat frame_, frame_rot_;
-  cv::Mat rectified_frame_, frame_rect_rot_;
+  cv::Mat frame_, frame_left, frame_right,  frame_left_rot_ ,frame_right_rot_ ;
+  cv::Mat rectified_frame_left , frame_left_rect_rot_,rectified_frame_right,  frame_right_rect_rot_;
+  cv::Mat left_raw;
 
-  /* Image processing pipeline buffers and maps. */
-#if defined(WITH_VPI)
-  VPIBackend vpi_backend_;
-  VPIStream vpi_stream_ = nullptr;
-  VPIPayload vpi_remap_payload_ = nullptr, vpi_rot_payload_ = nullptr;
-  VPIImage vpi_frame_ = nullptr, vpi_frame_resized_ = nullptr, vpi_frame_rot_ = nullptr;
-  VPIImage vpi_frame_rect_ = nullptr, vpi_frame_rect_rot_ = nullptr;
-  VPIImage vpi_frame_wrap_ = nullptr, vpi_frame_rect_wrap_ = nullptr;
-  VPIImage vpi_frame_rot_wrap_ = nullptr, vpi_frame_rect_rot_wrap_ = nullptr;
-  VPIWarpMap vpi_rect_map_, vpi_rot_map_;
-  VPIPolynomialLensDistortionModel vpi_distortion_model_;
-  VPICameraIntrinsic vpi_camera_int_;
-  const VPICameraExtrinsic vpi_camera_ext_ = {
-    {1, 0, 0, 0},
-    {0, 1, 0, 0},
-    {0, 0, 1, 0}};
-#else
+  /* Image processing pipeline buffers and maps*/
+
   cv::Mat A_, D_;
   cv::Mat map1_, map2_;
-#if defined(WITH_CUDA)
-  cv::cuda::GpuMat gpu_frame_, gpu_frame_rot_;
-  cv::cuda::GpuMat gpu_rectified_frame_, gpu_rectified_frame_rot_;
-  cv::cuda::GpuMat gpu_map1_, gpu_map2_;
-#endif
-#endif
 
   /* Node parameters. */
   std::string frame_id_;
@@ -136,26 +150,34 @@ private:
   int64_t image_width_ = 0;
   int64_t rotation_ = 0;
 
-  /* Node parameters validation routines. */
-  bool validate_brightness(const rclcpp::Parameter & p);
-  bool validate_exposure(const rclcpp::Parameter & p);
-  bool validate_wb_temperature(const rclcpp::Parameter & p);
-
   /* Service servers. */
   rclcpp::Service<SetBool>::SharedPtr hw_enable_server_;
 
   /* Service callbacks. */
   void hw_enable_callback(SetBool::Request::SharedPtr req, SetBool::Response::SharedPtr resp);
 
-  /* image_transport publishers and buffers. */
-  std::shared_ptr<image_transport::CameraPublisher> camera_pub_;
-  std::shared_ptr<image_transport::Publisher> rect_pub_;
-  camera_info_manager::CameraInfo camera_info_{};
-  std::shared_ptr<camera_info_manager::CameraInfoManager> cinfo_manager_;
+  /*Node parameters descriptors */
+  ParameterDescriptor autostart_descriptor_;
+  ParameterDescriptor base_topic_name_descriptor_;
+  ParameterDescriptor camera_calibration_file_descriptor_;
+  ParameterDescriptor camera_id_descriptor_;
+  ParameterDescriptor fps_descriptor_;
+  ParameterDescriptor camera_name_descriptor_;
+  ParameterDescriptor image_height_descriptor_;
+  ParameterDescriptor image_width_descriptor_;
+  ParameterDescriptor publisher_depth_descriptor_;
+  
 
-  /* Theora stream publishers. */
-  std::shared_ptr<TheoraWrappers::Publisher> stream_pub_;
-  std::shared_ptr<TheoraWrappers::Publisher> rect_stream_pub_;
+
+  /* image_transport publishers and buffers. */
+  std::shared_ptr<image_transport::CameraPublisher> camera_pub_left;
+  std::shared_ptr<image_transport::CameraPublisher> camera_pub_right;
+  std::shared_ptr<image_transport::Publisher> rect_pub_left;
+  std::shared_ptr<image_transport::Publisher> rect_pub_right;
+  camera_info_manager::CameraInfo camera_info_left{};
+  camera_info_manager::CameraInfo camera_info_right{};
+  std::shared_ptr<camera_info_manager::CameraInfoManager> cinfo_manager_left;
+  std::shared_ptr<camera_info_manager::CameraInfoManager> cinfo_manager_right;
 
   /* Utility routines. */
   bool open_camera();
@@ -163,6 +185,32 @@ private:
   bool process_frame();
   Image::SharedPtr frame_to_msg(cv::Mat & frame);
 
+ 
+  void declare_bool_parameter(
+    std::string && name,
+    bool default_val,
+    std::string && desc, std::string && constraints,
+    bool read_only, ParameterDescriptor & descriptor);
+  void declare_double_parameter(
+    std::string && name,
+    double default_val, double from, double to, double step,
+    std::string && desc, std::string && constraints,
+    bool read_only, ParameterDescriptor & descriptor);
+  void declare_int_parameter(
+    std::string && name,
+    int64_t default_val, int64_t from, int64_t to, int64_t step,
+    std::string && desc, std::string && constraints,
+    bool read_only, ParameterDescriptor & descriptor);
+  void declare_string_parameter(
+    std::string && name,
+    std::string && default_val,
+    std::string && desc, std::string && constraints,
+    bool read_only, ParameterDescriptor & descriptor);
+  void init_parameters();
+
+    /* Parameters callback */
+  OnSetParametersCallbackHandle::SharedPtr on_set_params_chandle_;
+  SetParametersResult on_set_parameters_callback(const std::vector<rclcpp::Parameter> & params);
   /* Camera sampling thread. */
   std::thread camera_sampling_thread_;
   void camera_sampling_routine();
@@ -173,4 +221,3 @@ private:
 
 } // namespace USBCameraDriver
 
-#endif // ROS2_USB_CAMERA_USB_CAMERA_DRIVER_HPP

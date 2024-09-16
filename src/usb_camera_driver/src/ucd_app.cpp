@@ -28,42 +28,51 @@
  * 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+#define MODULE_NAME "usb_camera_app"
+
+#include <cstdio>
 #include <cstdlib>
-#include <csignal>
+#include <iostream>
+
+#include <sys/types.h>
+#include <unistd.h>
 
 #include <rclcpp/rclcpp.hpp>
 
-#include <ros2_app_manager/ros2_app_manager.hpp>
-#include <ros2_signal_handler/ros2_signal_handler.hpp>
-
 #include <usb_camera_driver/usb_camera_driver.hpp>
 
-using namespace DUAAppManagement;
+using namespace USBCameraDriver;
 
 int main(int argc, char ** argv)
 {
-  ROS2AppManager<rclcpp::executors::SingleThreadedExecutor,
-    USBCameraDriver::CameraDriverNode> app_manager(
-    argc,
-    argv,
-    "usb_camera_driver_app");
+  // Disable I/O buffering
+  if (setvbuf(stdout, NULL, _IONBF, 0)) {
+    RCLCPP_FATAL(
+      rclcpp::get_logger(MODULE_NAME),
+      "Failed to set I/O buffering");
+    exit(EXIT_FAILURE);
+  }
 
-  SignalHandler & sig_handler = SignalHandler::get_global_signal_handler();
-  sig_handler.init(
-    app_manager.get_context(),
-    "usb_camera_driver_app_signal_handler",
-    app_manager.get_executor());
-  sig_handler.install(SIGINT);
-  sig_handler.install(SIGTERM);
-  sig_handler.install(SIGQUIT);
-  sig_handler.ignore(SIGHUP);
-  sig_handler.ignore(SIGUSR1);
-  sig_handler.ignore(SIGUSR2);
+  // Initialize ROS 2 context
+  rclcpp::init(argc, argv);
+  std::cout << "ok" << std::endl;
 
-  app_manager.run();
+  // Initialize ROS 2 node
+  auto usb_camera_driver_node = std::make_shared<CameraDriverNode>();
 
-  app_manager.shutdown();
-  sig_handler.fini();
+  RCLCPP_WARN(
+    rclcpp::get_logger(MODULE_NAME),
+    "(%d) " MODULE_NAME " online",
+    getpid());
 
+  // Spin on the node
+  //SPIN SERVE PER FAR RIMANERE IL NODO SEMPRE APERTO
+  //ALTRIMENTISICHIUDEREBBE DOPO IL PRIMO MESSAGGIO RICEVUTO 
+  
+  rclcpp::spin(usb_camera_driver_node);
+
+  // Terminate node and application
+  usb_camera_driver_node.reset();
+  rclcpp::shutdown();
   exit(EXIT_SUCCESS);
 }
