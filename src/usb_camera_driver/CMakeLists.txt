@@ -54,10 +54,6 @@ find_package(std_srvs REQUIRED)
 
 
 
-# Generate parameters source code
-generate_init_parameters(
-  YAML_FILE "${CMAKE_CURRENT_SOURCE_DIR}/src/usb_camera_driver/params.yaml"
-  OUT_FILE "init_parameters.cpp")
 
 # Configure USB Camera Driver node source files
 file(GLOB USB_CAMERA_DRIVER_NODE_SRCS
