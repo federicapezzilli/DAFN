@@ -1,0 +1,14 @@
+/usb_camera/usb_camera_driver:
+  ros__parameters:
+    autostart: true
+    base_topic_name: camera
+    best_effort_qos: true
+    camera_calibration_file: file:///home/federica/Scrivania/progetto_dafn/src/usb_camera_driver/config/camera.yaml
+    camera_id: 0
+    camera_device_file: ''
+    camera_name: camera
+    image_height: 480
+    image_width: 640
+    fps: 20
+    publisher_depth: 5
+    rotation: 0
